@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sys8": {
+      "command": "npx",
+      "args": ["tsx", "/Users/ug/code/AI/mcp/sys8/src/index.ts"]
+    }
+  }
+}
+

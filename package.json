@@ -1,0 +1,33 @@
+{
+  "name": "sys8",
+  "version": "0.4.0",
+  "description": "MCP server for system information and developer utilities: date/time, OS version, math calculations, random strings, hashing, UUID generation, text formatting, data validation, JSON formatting, encoding/decoding, and more",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "sys8": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "test": "node test-server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "expr-eval": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.16.5",
+    "typescript": "^5.3.3"
+  }
+}
