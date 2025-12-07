@@ -132,6 +132,42 @@ npm install
 npm run build
 ```
 
+## Quick Start: MCP Configuration
+
+After cloning and building the repository, configure sys8 in your MCP client.
+
+### Option 1: Local Installation (Recommended)
+
+**Example for macOS/Linux:**
+```json
+{
+  "command": "node",
+  "args": ["/home/user/mcp-sys8/build/index.js"]
+}
+```
+
+**Example for Windows:**
+```json
+{
+  "command": "node",
+  "args": ["C:\\Users\\user\\mcp-sys8\\build\\index.js"]
+}
+```
+
+### Option 2: Relative Path (Project-Specific Configuration)
+
+If sys8 is located in your project:
+```json
+{
+  "command": "node",
+  "args": ["./sys8/build/index.js"]
+}
+```
+
+### Complete Configuration Examples
+
+For detailed installation and configuration instructions for all MCP clients (Cursor AI, Claude Desktop, Windsurf, Docker), see the [**Complete Installation Guide**](INSTALLATION.md).
+
 ### Docker Installation
 
 The sys8 MCP server is containerized and can be run using Docker.
