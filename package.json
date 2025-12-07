@@ -7,12 +7,12 @@
     "type": "git",
     "url": "https://github.com/Angry-Robot-Deals/mcp-sys8.git"
   },
-  "author": "Angry Robot Deals",
+  "author": "Pavel Valentov",
   "bugs": {
     "url": "https://github.com/Angry-Robot-Deals/mcp-sys8/issues"
   },
   "homepage": "https://github.com/Angry-Robot-Deals/mcp-sys8#readme",
-  "private": true,
+  "private": false,
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
@@ -31,7 +31,7 @@
     "test": "node test-server.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0",
+    "@modelcontextprotocol/sdk": "1.23.1",
     "expr-eval": "^2.0.2"
   },
   "devDependencies": {
