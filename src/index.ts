@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import * as os from 'os';
 import * as fs from 'fs';
-import { Parser } from 'expr-eval';
+import { Parser } from 'expr-eval-fork';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as crypto from 'crypto';
@@ -1170,6 +1170,10 @@ class SystemInfoServer {
       const expr = this.parser.parse(trimmedExpression);
 
       // Evaluate the expression (no variables needed for basic calculations)
+      // SECURITY: We always pass an empty object {} to evaluate(), which mitigates
+      // the GHSA-jc85-fpwf-qm7x vulnerability (Prototype Pollution) that affects
+      // expr-eval-fork when user-controlled variables are passed. Since we don't
+      // accept variables from users, the risk is minimal.
       const result = expr.evaluate({});
 
       // Check for invalid results (NaN, Infinity)
