@@ -39,10 +39,14 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/build ./build
 
+# Copy test file for MCP method testing
+COPY test-server.mjs ./
+
 # Set ownership
 RUN chown -R app:app /app
 
 USER app
 
-# Start MCP server via stdio
+# Start MCP server via stdio (standard for MCP servers in Docker Registry)
+# Logs are handled by console.error in the application code
 CMD ["node", "build/index.js"]

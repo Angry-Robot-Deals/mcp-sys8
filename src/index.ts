@@ -8,6 +8,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import * as os from 'os';
+import * as fs from 'fs';
 import { Parser } from 'expr-eval';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -24,6 +25,8 @@ import * as bytesUtils from './utils/bytes.js';
 import * as numberUtils from './utils/number.js';
 import * as colorUtils from './utils/color.js';
 import * as timezoneUtils from './utils/timezone.js';
+import * as logAnalysisUtils from './utils/log-analysis.js';
+import * as languageAnalysisUtils from './utils/language-analysis.js';
 
 const execAsync = promisify(exec);
 
@@ -128,6 +131,14 @@ interface ConvertTimezoneArgs {
   from_timezone?: string;
   to_timezone: string;
   format?: string;
+}
+
+interface AnalyzeLogsArgs {
+  text: string;
+}
+
+interface AnalyzeLanguageArgs {
+  text: string;
 }
 
 const isValidGetDateTimeArgs = (args: any): args is GetDateTimeArgs =>
@@ -293,6 +304,16 @@ const isValidConvertTimezoneArgs = (args: any): args is ConvertTimezoneArgs =>
   (args.from_timezone === undefined || typeof args.from_timezone === 'string') &&
   (args.format === undefined || typeof args.format === 'string');
 
+const isValidAnalyzeLogsArgs = (args: any): args is AnalyzeLogsArgs =>
+  typeof args === 'object' &&
+  args !== null &&
+  typeof args.text === 'string';
+
+const isValidAnalyzeLanguageArgs = (args: any): args is AnalyzeLanguageArgs =>
+  typeof args === 'object' &&
+  args !== null &&
+  typeof args.text === 'string';
+
 class SystemInfoServer {
   private server: Server;
   private parser: Parser;
@@ -338,8 +359,19 @@ class SystemInfoServer {
   }
 
   private setupToolHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const timestamp = new Date().toISOString();
+      const listToolsLogMsg = `[${timestamp}] [INFO] ListTools request received`;
+      console.error(listToolsLogMsg);
+      const listToolsLogFile = process.env.LOG_FILE;
+      if (listToolsLogFile) {
+        try {
+          fs.appendFileSync(listToolsLogFile, listToolsLogMsg + '\n');
+        } catch (e) {
+          // Ignore file write errors
+        }
+      }
+      const toolsList = [
         {
           name: 'get_current_datetime',
           description: 'Get the current date and time in all available formats (UTC, date string, time string, datetime string, Unix timestamps, human-readable formats)',
@@ -723,13 +755,64 @@ class SystemInfoServer {
             required: ['datetime', 'to_timezone'],
           },
         },
-      ],
-    }));
+        {
+          name: 'analyze_logs',
+          description: 'Analyze text for errors and warnings in logs (compilation, npm, Docker, runtime, etc.)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              text: {
+                type: 'string',
+                description: 'Text content to analyze for errors and warnings',
+              },
+            },
+            required: ['text'],
+          },
+        },
+        {
+          name: 'analyze_language',
+          description: 'Analyze text for language distribution and character types (English, Chinese, Russian, Ukrainian, Vietnamese, Japanese, Turkish, Spanish, digits, punctuation, symbols)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              text: {
+                type: 'string',
+                description: 'Text content to analyze for language and character distribution',
+              },
+            },
+            required: ['text'],
+          },
+        },
+      ];
+      const listToolsResponseMsg = `[${timestamp}] [INFO] ListTools response: ${toolsList.length} tools available`;
+      console.error(listToolsResponseMsg);
+      const listToolsResponseLogFile = process.env.LOG_FILE;
+      if (listToolsResponseLogFile) {
+        try {
+          fs.appendFileSync(listToolsResponseLogFile, listToolsResponseMsg + '\n');
+        } catch (e) {
+          // Ignore file write errors
+        }
+      }
+      return { tools: toolsList };
+    });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
+      const timestamp = new Date().toISOString();
+      const toolCallReceivedMsg = `[${timestamp}] [INFO] Tool call received: ${name}`;
+      console.error(toolCallReceivedMsg);
+      const logFile = process.env.LOG_FILE;
+      if (logFile) {
+        try {
+          fs.appendFileSync(logFile, toolCallReceivedMsg + '\n');
+        } catch (e) {
+          // Ignore file write errors
+        }
+      }
 
       try {
+        let result;
         switch (name) {
           case 'get_current_datetime':
             if (!isValidGetDateTimeArgs(args)) {
@@ -738,10 +821,14 @@ class SystemInfoServer {
                 'Invalid arguments for get_current_datetime'
               );
             }
-            return this.handleGetCurrentDateTime(args);
+            result = this.handleGetCurrentDateTime(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'get_os_version':
-            return this.handleGetOSVersion();
+            result = this.handleGetOSVersion();
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'calculate_math_expression':
             if (!isValidCalculateMathExpressionArgs(args)) {
@@ -750,7 +837,9 @@ class SystemInfoServer {
                 'Invalid arguments for calculate_math_expression: expression must be a non-empty string'
               );
             }
-            return this.handleCalculateMathExpression(args);
+            result = this.handleCalculateMathExpression(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'hash_string':
             if (!isValidHashStringArgs(args)) {
@@ -759,7 +848,9 @@ class SystemInfoServer {
                 'Invalid arguments for hash_string: input must be a non-empty string'
               );
             }
-            return this.handleHashString(args);
+            result = this.handleHashString(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           // Unified random generation (replaces random_string and generate_uuid)
           case 'generate_random':
@@ -769,7 +860,9 @@ class SystemInfoServer {
                 'Invalid arguments for generate_random: type must be uuid, hex, base64, or bytes'
               );
             }
-            return this.handleGenerateRandom(args);
+            result = this.handleGenerateRandom(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'encode_base64':
             if (!isValidEncodeBase64Args(args)) {
@@ -778,7 +871,9 @@ class SystemInfoServer {
                 'Invalid arguments for encode_base64: input must be a non-empty string'
               );
             }
-            return this.handleEncodeBase64(args);
+            result = this.handleEncodeBase64(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'decode_base64':
             if (!isValidDecodeBase64Args(args)) {
@@ -787,7 +882,9 @@ class SystemInfoServer {
                 'Invalid arguments for decode_base64: input must be a non-empty string'
               );
             }
-            return this.handleDecodeBase64(args);
+            result = this.handleDecodeBase64(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'encode_url':
             if (!isValidEncodeUrlArgs(args)) {
@@ -796,7 +893,9 @@ class SystemInfoServer {
                 'Invalid arguments for encode_url: input must be a non-empty string'
               );
             }
-            return this.handleEncodeUrl(args);
+            result = this.handleEncodeUrl(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'decode_url':
             if (!isValidDecodeUrlArgs(args)) {
@@ -805,7 +904,9 @@ class SystemInfoServer {
                 'Invalid arguments for decode_url: input must be a non-empty string'
               );
             }
-            return this.handleDecodeUrl(args);
+            result = this.handleDecodeUrl(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'format_text_case':
             if (!isValidFormatTextCaseArgs(args)) {
@@ -814,7 +915,9 @@ class SystemInfoServer {
                 'Invalid arguments for format_text_case: input must be a non-empty string'
               );
             }
-            return this.handleFormatTextCase(args);
+            result = this.handleFormatTextCase(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'generate_slug':
             if (!isValidGenerateSlugArgs(args)) {
@@ -823,7 +926,9 @@ class SystemInfoServer {
                 'Invalid arguments for generate_slug: input must be a non-empty string'
               );
             }
-            return this.handleGenerateSlug(args);
+            result = this.handleGenerateSlug(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'validate_data':
             if (!isValidValidateDataArgs(args)) {
@@ -832,7 +937,9 @@ class SystemInfoServer {
                 'Invalid arguments for validate_data: input must be a non-empty string and type must be valid'
               );
             }
-            return this.handleValidateData(args);
+            result = this.handleValidateData(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'format_json':
             if (!isValidFormatJsonArgs(args)) {
@@ -841,7 +948,9 @@ class SystemInfoServer {
                 'Invalid arguments for format_json: input must be a non-empty string and action must be valid'
               );
             }
-            return this.handleFormatJson(args);
+            result = this.handleFormatJson(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           // Phase 2: High priority functions
           case 'generate_password':
@@ -851,7 +960,9 @@ class SystemInfoServer {
                 'Invalid arguments for generate_password: length must be between 8 and 128'
               );
             }
-            return this.handleGeneratePassword(args);
+            result = this.handleGeneratePassword(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'format_bytes':
             if (!isValidFormatBytesArgs(args)) {
@@ -860,7 +971,9 @@ class SystemInfoServer {
                 'Invalid arguments for format_bytes: bytes must be a non-negative number'
               );
             }
-            return this.handleFormatBytes(args);
+            result = this.handleFormatBytes(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           // Phase 3: Medium priority functions
           case 'format_number':
@@ -870,7 +983,9 @@ class SystemInfoServer {
                 'Invalid arguments for format_number: number must be finite and format must be valid'
               );
             }
-            return this.handleFormatNumber(args);
+            result = this.handleFormatNumber(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'convert_color':
             if (!isValidConvertColorArgs(args)) {
@@ -879,7 +994,9 @@ class SystemInfoServer {
                 'Invalid arguments for convert_color: input must be a non-empty string and formats must be valid'
               );
             }
-            return this.handleConvertColor(args);
+            result = this.handleConvertColor(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           case 'convert_timezone':
             if (!isValidConvertTimezoneArgs(args)) {
@@ -888,15 +1005,42 @@ class SystemInfoServer {
                 'Invalid arguments for convert_timezone: datetime and to_timezone must be non-empty strings'
               );
             }
-            return this.handleConvertTimezone(args);
+            result = this.handleConvertTimezone(args);
+            this.logToolCall(name, args, true);
+            return result;
+
+          case 'analyze_logs':
+            if (!isValidAnalyzeLogsArgs(args)) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                'Invalid arguments for analyze_logs: text must be a string'
+              );
+            }
+            result = this.handleAnalyzeLogs(args);
+            this.logToolCall(name, args, true);
+            return result;
+
+          case 'analyze_language':
+            if (!isValidAnalyzeLanguageArgs(args)) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                'Invalid arguments for analyze_language: text must be a string'
+              );
+            }
+            result = this.handleAnalyzeLanguage(args);
+            this.logToolCall(name, args, true);
+            return result;
 
           default:
-            throw new McpError(
+            const unknownError = new McpError(
               ErrorCode.MethodNotFound,
               `Unknown tool: ${name}`
             );
+            this.logToolCall(name, args, false, unknownError);
+            throw unknownError;
         }
       } catch (error) {
+        this.logToolCall(name, args, false, error);
         if (error instanceof McpError) {
           throw error;
         }
@@ -921,6 +1065,31 @@ class SystemInfoServer {
     const minutes = String(now.getUTCMinutes()).padStart(2, '0');
     const seconds = String(now.getUTCSeconds()).padStart(2, '0');
 
+    // Helper function to format date as DD/MM/YYYY, HH:MM:SS in specified timezone
+    const formatHumanReadable = (date: Date, timeZone: string): string => {
+      // Get date components in the specified timezone
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      
+      const parts = formatter.formatToParts(date);
+      const day = parts.find(p => p.type === 'day')?.value || '00';
+      const month = parts.find(p => p.type === 'month')?.value || '00';
+      const year = parts.find(p => p.type === 'year')?.value || '0000';
+      const hour = parts.find(p => p.type === 'hour')?.value || '00';
+      const minute = parts.find(p => p.type === 'minute')?.value || '00';
+      const second = parts.find(p => p.type === 'second')?.value || '00';
+      
+      return `${day}/${month}/${year}, ${hour}:${minute}:${second}`;
+    };
+
     const result: any = {
       utc: now.toISOString(),
       date: now.toISOString().split('T')[0],
@@ -928,26 +1097,9 @@ class SystemInfoServer {
       datetime: `${now.toISOString().split('T')[0]} ${hours}:${minutes}:${seconds}`,
       unix_timestamp_seconds: Math.floor(now.getTime() / 1000),
       unix_timestamp_milliseconds: now.getTime(),
-      human_readable_utc0: now.toLocaleString('en-US', {
-        timeZone: 'UTC',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }),
-      human_readable_utc3_moscow: now.toLocaleString('en-US', {
-        timeZone: 'Europe/Moscow',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }),
+      human_readable_utc0: formatHumanReadable(now, 'UTC'),
+      human_readable_utc2: formatHumanReadable(now, 'Europe/Berlin'), // UTC+2 (CET/CEST)
+      human_readable_utc3: formatHumanReadable(now, 'Europe/Moscow'), // UTC+3
     };
 
     return {
@@ -1392,10 +1544,91 @@ class SystemInfoServer {
     }
   }
 
+  private handleAnalyzeLogs(args: AnalyzeLogsArgs) {
+    try {
+      const result = logAnalysisUtils.analyzeLogs(args);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Log analysis failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private handleAnalyzeLanguage(args: AnalyzeLanguageArgs) {
+    try {
+      const result = languageAnalysisUtils.analyzeLanguage(args);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Language analysis failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private logToolCall(name: string, args: any, success: boolean, error?: any) {
+    const timestamp = new Date().toISOString();
+    const argsStr = args ? JSON.stringify(args).substring(0, 200) : '{}';
+    const logMessage = success
+      ? `[${timestamp}] [INFO] Tool call: ${name} | Args: ${argsStr} | Status: SUCCESS`
+      : `[${timestamp}] [ERROR] Tool call: ${name} | Args: ${argsStr} | Status: FAILED | Error: ${error instanceof Error ? error.message : String(error)}`;
+    
+    // Write to stderr (visible in docker logs)
+    console.error(logMessage);
+    
+    // Also write to log file if LOG_FILE env var is set
+    const logFile = process.env.LOG_FILE;
+    if (logFile) {
+      try {
+        fs.appendFileSync(logFile, logMessage + '\n');
+      } catch (e) {
+        // Ignore file write errors
+      }
+    }
+  }
+
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Sys8 MCP server running on stdio');
+    const timestamp = new Date().toISOString();
+    const startupMessages = [
+      `[${timestamp}] [INFO] ========================================`,
+      `[${timestamp}] [INFO] Sys8 MCP Server started`,
+      `[${timestamp}] [INFO] Version: 0.4.0`,
+      `[${timestamp}] [INFO] Transport: stdio`,
+      `[${timestamp}] [INFO] ========================================`
+    ];
+    
+    // Write to stderr (visible in docker logs)
+    startupMessages.forEach(msg => console.error(msg));
+    
+    // Also write to log file if LOG_FILE env var is set
+    const logFile = process.env.LOG_FILE;
+    if (logFile) {
+      try {
+        startupMessages.forEach(msg => {
+          fs.appendFileSync(logFile, msg + '\n');
+        });
+      } catch (e) {
+        // Ignore file write errors
+      }
+    }
   }
 }
 

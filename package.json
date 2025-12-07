@@ -3,6 +3,15 @@
   "version": "0.4.0",
   "description": "MCP server for system information and developer utilities: date/time, OS version, math calculations, random strings, hashing, UUID generation, text formatting, data validation, JSON formatting, encoding/decoding, and more",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Angry-Robot-Deals/mcp-sys8.git"
+  },
+  "author": "Angry Robot Deals",
+  "bugs": {
+    "url": "https://github.com/Angry-Robot-Deals/mcp-sys8/issues"
+  },
+  "homepage": "https://github.com/Angry-Robot-Deals/mcp-sys8#readme",
   "private": true,
   "type": "module",
   "engines": {

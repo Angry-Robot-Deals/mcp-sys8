@@ -4,11 +4,22 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+import { existsSync } from 'fs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Determine if running in Docker or locally
+const isDocker = 
+  process.env.NODE_ENV === 'production' || 
+  process.env.DOCKER === 'true' ||
+  existsSync('/.dockerenv') ||
+  existsSync('/app/build/index.js') ||
+  (typeof process.env.HOME === 'undefined' || process.env.HOME === '/app');
+
 async function testMCP() {
   console.log('🚀 Starting Sys8 MCP Server Tests\n');
+  console.log(`Environment: ${isDocker ? 'Docker' : 'Local'}\n`);
 
   const client = new Client({
     name: 'test-client',
@@ -17,11 +28,26 @@ async function testMCP() {
     capabilities: {},
   });
 
-  // Start the server process
-  const serverPath = join(__dirname, 'src', 'index.ts');
+  // Determine server path based on environment
+  let serverPath;
+  let command;
+  let args;
+
+  if (isDocker) {
+    // Running in Docker - use compiled JavaScript
+    serverPath = join('/app', 'build', 'index.js');
+    command = 'node';
+    args = [serverPath];
+  } else {
+    // Running locally - use TypeScript with tsx
+    serverPath = join(__dirname, 'src', 'index.ts');
+    command = 'npx';
+    args = ['tsx', serverPath];
+  }
+
   const transport = new StdioClientTransport({
-    command: 'npx',
-    args: ['tsx', serverPath],
+    command,
+    args,
   });
 
   try {
@@ -42,7 +68,7 @@ async function testMCP() {
       const requiredFields = [
         'utc', 'date', 'time', 'datetime',
         'unix_timestamp_seconds', 'unix_timestamp_milliseconds',
-        'human_readable_utc0', 'human_readable_utc3_moscow'
+        'human_readable_utc0', 'human_readable_utc2', 'human_readable_utc3'
       ];
       
       const missingFields = requiredFields.filter(field => !(field in data));
@@ -694,6 +720,199 @@ async function testMCP() {
       console.log('✅ convert_timezone: PASSED\n');
     } catch (error) {
       console.error('❌ convert_timezone: FAILED', error);
+    }
+
+    // Test 27: analyze_logs - Check for errors and warnings
+    console.log('🔍 Test 27: analyze_logs - Error and warning detection');
+    try {
+      const testLog = `
+npm ERR! code EACCES
+npm ERR! permission denied, mkdir '/usr/local/lib/node_modules'
+npm WARN deprecated package@1.0.0
+error TS2304: Cannot find name 'undefined'.
+docker: error response from daemon
+WARNING: This is a warning message
+[ERROR] Something went wrong
+build failed
+`;
+      
+      const result27 = await client.callTool({
+        name: 'analyze_logs',
+        arguments: {
+          text: testLog,
+        },
+      });
+      const data = JSON.parse(result27.content[0].text);
+      console.log('Result:', result27.content[0].text);
+      
+      if (typeof data.error_count !== 'number' || data.error_count < 0) {
+        throw new Error('Missing or invalid error_count field');
+      }
+      
+      if (typeof data.warning_count !== 'number' || data.warning_count < 0) {
+        throw new Error('Missing or invalid warning_count field');
+      }
+      
+      if (!Array.isArray(data.errors)) {
+        throw new Error('Missing or invalid errors array');
+      }
+      
+      if (!Array.isArray(data.warnings)) {
+        throw new Error('Missing or invalid warnings array');
+      }
+      
+      if (data.error_count === 0) {
+        throw new Error('Expected to find at least one error in test log');
+      }
+      
+      if (data.warning_count === 0) {
+        throw new Error('Expected to find at least one warning in test log');
+      }
+      
+      console.log(`✅ analyze_logs: PASSED (found ${data.error_count} errors, ${data.warning_count} warnings)\n`);
+    } catch (error) {
+      console.error('❌ analyze_logs: FAILED', error);
+    }
+
+    // Test 28: analyze_logs - Empty text
+    console.log('🔍 Test 28: analyze_logs - Empty text');
+    try {
+      const result28 = await client.callTool({
+        name: 'analyze_logs',
+        arguments: {
+          text: '',
+        },
+      });
+      const data = JSON.parse(result28.content[0].text);
+      
+      if (data.error_count !== 0 || data.warning_count !== 0) {
+        throw new Error('Empty text should return zero counts');
+      }
+      
+      console.log('✅ analyze_logs (empty): PASSED\n');
+    } catch (error) {
+      console.error('❌ analyze_logs (empty): FAILED', error);
+    }
+
+    // Test 29: analyze_logs - Real compilation error example
+    console.log('🔍 Test 29: analyze_logs - Real compilation error');
+    try {
+      const realErrorLog = `
+src/index.ts:45:12 - error TS2304: Cannot find name 'undefined'.
+  45     const x = undefined;
+                ~~~~~~~~
+npm ERR! code EACCES
+npm ERR! permission denied
+docker build failed
+`;
+      
+      const result29 = await client.callTool({
+        name: 'analyze_logs',
+        arguments: {
+          text: realErrorLog,
+        },
+      });
+      const data = JSON.parse(result29.content[0].text);
+      
+      console.log(`Found ${data.error_count} errors, ${data.warning_count} warnings`);
+      if (data.errors.length > 0) {
+        console.log('Sample error:', data.errors[0]);
+      }
+      
+      if (data.error_count === 0) {
+        throw new Error('Expected to find errors in compilation log');
+      }
+      
+      console.log('✅ analyze_logs (real error): PASSED\n');
+    } catch (error) {
+      console.error('❌ analyze_logs (real error): FAILED', error);
+    }
+
+    // Test 30: analyze_language - English text
+    console.log('🔍 Test 30: analyze_language - English text');
+    try {
+      const englishText = 'Hello World! This is a test. 123';
+      
+      const result30 = await client.callTool({
+        name: 'analyze_language',
+        arguments: {
+          text: englishText,
+        },
+      });
+      const data = JSON.parse(result30.content[0].text);
+      console.log('Result:', JSON.stringify(data, null, 2));
+      
+      if (typeof data.total_characters !== 'number') {
+        throw new Error('Missing or invalid total_characters field');
+      }
+      
+      if (!data.languages || typeof data.languages.english !== 'object') {
+        throw new Error('Missing or invalid languages.english field');
+      }
+      
+      if (typeof data.languages.english.count !== 'number' || typeof data.languages.english.percentage !== 'number') {
+        throw new Error('Missing or invalid languages.english count/percentage');
+      }
+      
+      if (!data.categories || typeof data.categories.digits !== 'object') {
+        throw new Error('Missing or invalid categories.digits field');
+      }
+      
+      if (data.languages.english.count === 0) {
+        throw new Error('Expected to find English characters in test text');
+      }
+      
+      console.log(`✅ analyze_language (English): PASSED (${data.total_characters} chars, ${data.languages.english.percentage}% English)\n`);
+    } catch (error) {
+      console.error('❌ analyze_language (English): FAILED', error);
+    }
+
+    // Test 31: analyze_language - Mixed languages
+    console.log('🔍 Test 31: analyze_language - Mixed languages');
+    try {
+      const mixedText = 'Hello 你好 Привет こんにちは 123!';
+      
+      const result31 = await client.callTool({
+        name: 'analyze_language',
+        arguments: {
+          text: mixedText,
+        },
+      });
+      const data = JSON.parse(result31.content[0].text);
+      
+      console.log(`Total: ${data.total_characters}, English: ${data.languages.english.percentage}%, Chinese: ${data.languages.chinese.percentage}%, Russian: ${data.languages.russian.percentage}%, Japanese: ${data.languages.japanese.percentage}%`);
+      
+      if (data.total_characters === 0) {
+        throw new Error('Expected to find characters in mixed text');
+      }
+      
+      console.log('✅ analyze_language (Mixed): PASSED\n');
+    } catch (error) {
+      console.error('❌ analyze_language (Mixed): FAILED', error);
+    }
+
+    // Test 32: analyze_language - Empty text
+    console.log('🔍 Test 32: analyze_language - Empty text');
+    try {
+      const result32 = await client.callTool({
+        name: 'analyze_language',
+        arguments: {
+          text: '',
+        },
+      });
+      const data = JSON.parse(result32.content[0].text);
+      
+      if (data.total_characters !== 0) {
+        throw new Error('Empty text should return zero total_characters');
+      }
+      
+      if (data.languages.english.count !== 0 || data.categories.digits.count !== 0) {
+        throw new Error('Empty text should return zero counts');
+      }
+      
+      console.log('✅ analyze_language (empty): PASSED\n');
+    } catch (error) {
+      console.error('❌ analyze_language (empty): FAILED', error);
     }
 
     // List all tools

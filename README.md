@@ -1,9 +1,13 @@
-# Sys8 MCP Server
+<div align="center">
+  <img src="logo/logo256.png" alt="Sys8 MCP Server Logo" width="128" height="128">
+  <h1>Sys8 MCP Server</h1>
+  <p>MCP server for system information and developer utilities</p>
+  <p>
+    <strong>Version</strong>: 0.4.0 | <strong>License</strong>: MIT
+  </p>
+</div>
 
-MCP server for system information and developer utilities: date/time, OS version, math calculations, random data generation (UUID, hex, base64), hashing, text formatting, data validation (including JSON), encoding/decoding, and more.
-
-**Version**: 0.4.0  
-**License**: MIT
+Sys8 is a comprehensive Model Context Protocol (MCP) server that provides system information and developer utilities: date/time, OS version, math calculations, random data generation (UUID, hex, base64), hashing, text formatting, data validation (including JSON), encoding/decoding, and more.
 
 ## Features
 
@@ -28,6 +32,8 @@ MCP server for system information and developer utilities: date/time, OS version
 - **Format Number**: Format numbers (currency, percentage, thousands separator, decimal)
 - **Convert Color**: Convert between color formats (hex, RGB, HSL)
 - **Convert Timezone**: Convert datetime between timezones
+- **Analyze Logs**: Analyze text for errors and warnings in logs (compilation, npm, Docker, runtime, etc.)
+- **Analyze Language**: Analyze text for language distribution and character types (English, Chinese, Russian, Ukrainian, Vietnamese, Japanese, Turkish, Spanish, digits, punctuation, symbols)
 
 ## Why MCP? Project Philosophy
 
@@ -156,6 +162,105 @@ The sys8 server is designed to be used with Docker Desktop MCP Toolkit. After bu
 
 **Note**: For production use in Docker Registry, the server will be available through Docker Desktop MCP Toolkit after publication.
 
+#### Viewing Docker Logs
+
+The MCP server outputs detailed logs to `stderr` (standard error), which allows you to monitor all MCP operations in Docker. Here's how to view them:
+
+**Option 1: Run container and see logs directly**
+```bash
+# Run container and see all logs immediately
+docker run --rm sys8:latest node test-server.mjs
+
+# This will show:
+# - Server startup logs
+# - All MCP tool calls
+# - Success/failure status for each call
+```
+
+**Option 2: Run container in detached mode (for production)**
+```bash
+# IMPORTANT: Run container with default CMD (MCP server will start automatically)
+docker run -d --name sys8-server sys8:latest
+
+# View logs (server startup and all MCP operations)
+docker logs sys8-server
+
+# View logs in real-time (follow mode)
+docker logs -f sys8-server
+
+# View last 50 lines
+docker logs --tail 50 sys8-server
+
+# View logs with timestamps
+docker logs -f -t sys8-server
+
+# Stop and remove container
+docker rm -f sys8-server
+```
+
+**⚠️ Common Issue: Empty Logs**
+
+If `docker logs sys8-server` shows nothing, it means the container was started with a different command (like `sleep infinity`) instead of running the MCP server.
+
+**Solution:**
+```bash
+# Stop and remove the container
+docker stop sys8-server
+docker rm sys8-server
+
+# Start with correct command (MCP server will run automatically)
+docker run -d --name sys8-server sys8:latest
+
+# Now logs will be visible
+docker logs -f sys8-server
+```
+
+**To check if server is running:**
+```bash
+# Check container status
+docker ps | grep sys8-server
+
+# Check if MCP server process is running (should show node process)
+docker exec sys8-server sh -c "pgrep -f 'node.*build/index.js' || echo 'Server not running - container may be using sleep command'"
+```
+
+**Option 2: Run container and see logs immediately**
+```bash
+# Run container and see all output (including logs)
+docker run --rm sys8:latest node test-server.mjs
+```
+
+**Option 3: Test MCP methods and see logs**
+```bash
+# Build image
+docker build -t sys8-server:latest .
+
+# Run tests inside container (logs will be visible)
+docker run --rm sys8-server:latest node test-server.mjs
+```
+
+**Log Format:**
+All logs are prefixed with timestamps and log levels:
+```
+[2025-12-07T04:33:44.379Z] [INFO] ========================================
+[2025-12-07T04:33:44.379Z] [INFO] Sys8 MCP Server started
+[2025-12-07T04:33:44.379Z] [INFO] Version: 0.4.0
+[2025-12-07T04:33:44.379Z] [INFO] Transport: stdio
+[2025-12-07T04:33:44.379Z] [INFO] ========================================
+[2025-12-07T04:33:44.383Z] [INFO] Tool call received: get_current_datetime
+[2025-12-07T04:33:44.391Z] [INFO] Tool call: get_current_datetime | Args: {} | Status: SUCCESS
+[2025-12-07T04:33:44.392Z] [INFO] Tool call received: get_os_version
+[2025-12-07T04:33:44.392Z] [INFO] Tool call: get_os_version | Args: {} | Status: SUCCESS
+```
+
+**What gets logged:**
+- Server startup information (version, transport)
+- ListTools requests (when client requests available tools)
+- All tool calls (name, arguments, success/failure status)
+- Errors (with detailed error messages)
+
+**Note:** When the server is used via MCP client (like Cursor AI), logs are automatically visible in the client's output. For Docker containers running in detached mode, use `docker logs` to view them.
+
 ## Usage
 
 ### Available Tools
@@ -182,8 +287,9 @@ Get the current date and time in all available formats.
   "datetime": "2025-11-30 10:27:35",
   "unix_timestamp_seconds": 1764498455,
   "unix_timestamp_milliseconds": 1764498455291,
-  "human_readable_utc0": "11/30/2025, 10:27:35",
-  "human_readable_utc3_moscow": "11/30/2025, 13:27:35"
+  "human_readable_utc0": "30/11/2025, 10:27:35",
+  "human_readable_utc2": "30/11/2025, 12:27:35",
+  "human_readable_utc3": "30/11/2025, 13:27:35"
 }
 ```
 
@@ -194,8 +300,9 @@ Get the current date and time in all available formats.
 - `datetime`: Combined date and time string
 - `unix_timestamp_seconds`: Unix timestamp in seconds
 - `unix_timestamp_milliseconds`: Unix timestamp in milliseconds
-- `human_readable_utc0`: Human-readable format in UTC+0
-- `human_readable_utc3_moscow`: Human-readable format in UTC+3 (Moscow timezone)
+- `human_readable_utc0`: Human-readable format in UTC+0 (DD/MM/YYYY, HH:MM:SS)
+- `human_readable_utc2`: Human-readable format in UTC+2 (DD/MM/YYYY, HH:MM:SS)
+- `human_readable_utc3`: Human-readable format in UTC+3 (DD/MM/YYYY, HH:MM:SS)
 
 #### 2. `get_os_version`
 Get the operating system version, platform information, and current user information.
@@ -402,7 +509,647 @@ Generate hash for a string (useful for .env file keys).
 **Error Handling:**
 - Empty input: Returns error "Input string cannot be empty or whitespace-only"
 
-## Configuration for Cursor AI
+#### 6. `analyze_logs`
+Analyze text for errors and warnings in logs. Detects common error patterns including compilation errors, npm errors, Docker errors, runtime errors, and warnings.
+
+**Parameters:**
+- `text` (required, string): Text content to analyze for errors and warnings
+
+**Example:**
+```json
+{
+  "name": "analyze_logs",
+  "arguments": {
+    "text": "npm ERR! code EACCES\nnpm ERR! permission denied\nerror TS2304: Cannot find name 'undefined'.\nnpm WARN deprecated package@1.0.0"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "error_count": 3,
+  "warning_count": 1,
+  "errors": [
+    {
+      "line": 1,
+      "message": "npm ERR! code EACCES",
+      "type": "npm"
+    },
+    {
+      "line": 2,
+      "message": "npm ERR! permission denied",
+      "type": "npm"
+    },
+    {
+      "line": 3,
+      "message": "error TS2304: Cannot find name 'undefined'.",
+      "type": "compilation"
+    }
+  ],
+  "warnings": [
+    {
+      "line": 4,
+      "message": "npm WARN deprecated package@1.0.0",
+      "type": "npm"
+    }
+  ]
+}
+```
+
+**Response Fields:**
+- `error_count`: Number of errors found in the text
+- `warning_count`: Number of warnings found in the text
+- `errors`: Array of error objects with:
+  - `line`: Line number where error was found
+  - `message`: Error message (truncated to 200 characters)
+  - `type`: Error type (compilation, npm, docker, runtime, etc.)
+- `warnings`: Array of warning objects with:
+  - `line`: Line number where warning was found
+  - `message`: Warning message (truncated to 200 characters)
+  - `type`: Warning type (npm, deprecated, security, etc.)
+
+**Detected Error Types:**
+- Compilation errors (TypeScript, syntax, type errors)
+- npm errors (EACCES, ENOENT, installation failures)
+- Docker errors (build failures, image not found, container errors)
+- Runtime errors (exceptions, fatal errors, stack overflow)
+- Network errors (connection refused, timeout, HTTP errors)
+- File system errors (ENOENT, EACCES, permission denied)
+- Database errors (SQL errors, connection failures)
+- Authentication errors (unauthorized, invalid token)
+
+**Detected Warning Types:**
+- npm warnings (deprecated packages, peer dependencies)
+- Compilation warnings (unused variables, type safety)
+- Docker warnings
+- Security warnings (vulnerabilities, insecure configurations)
+- Performance warnings (slow queries, memory leaks)
+- Deprecated API warnings
+
+**Error Handling:**
+- Empty text: Returns zero counts and empty arrays
+
+#### 7. `analyze_language`
+Analyze text for language distribution and character types. Detects characters from multiple languages (English, Chinese, Russian, Ukrainian, Vietnamese, Japanese, Turkish, Spanish) and categorizes other characters (digits, punctuation, symbols, whitespace).
+
+**Parameters:**
+- `text` (required, string): Text content to analyze for language and character distribution
+
+**Example:**
+```json
+{
+  "name": "analyze_language",
+  "arguments": {
+    "text": "Hello 你好 Привет こんにちは 123!"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "total_characters": 20,
+  "encoding": "UTF-16 (JavaScript default)",
+  "languages": {
+    "english": {
+      "count": 5,
+      "percentage": 25.0
+    },
+    "chinese": {
+      "count": 2,
+      "percentage": 10.0
+    },
+    "russian": {
+      "count": 6,
+      "percentage": 30.0
+    },
+    "ukrainian": {
+      "count": 0,
+      "percentage": 0.0
+    },
+    "vietnamese": {
+      "count": 0,
+      "percentage": 0.0
+    },
+    "japanese": {
+      "count": 5,
+      "percentage": 25.0
+    },
+    "turkish": {
+      "count": 0,
+      "percentage": 0.0
+    },
+    "spanish": {
+      "count": 0,
+      "percentage": 0.0
+    }
+  },
+  "categories": {
+    "digits": {
+      "count": 3,
+      "percentage": 15.0
+    },
+    "punctuation": {
+      "count": 1,
+      "percentage": 5.0
+    },
+    "symbols": {
+      "count": 0,
+      "percentage": 0.0
+    },
+    "whitespace": {
+      "count": 3,
+      "percentage": 15.0
+    },
+    "other": {
+      "count": 0,
+      "percentage": 0.0
+    }
+  }
+}
+```
+
+**Response Fields:**
+- `total_characters`: Total number of characters in the text
+- `encoding`: Detected encoding (UTF-8, UTF-16, etc.) if determinable
+- `languages`: Object with language-specific counts and percentages:
+  - `english`: English letters (A-Z, a-z)
+  - `chinese`: Chinese characters (CJK Unified Ideographs)
+  - `russian`: Russian Cyrillic characters
+  - `ukrainian`: Ukrainian Cyrillic characters (distinguished by specific characters like і, ї, є)
+  - `vietnamese`: Vietnamese Latin characters with diacritics
+  - `japanese`: Japanese characters (Hiragana, Katakana, Kanji)
+  - `turkish`: Turkish Latin characters with specific characters (İ, ı, Ş, ş, Ğ, ğ, Ç, ç, Ö, ö, Ü, ü)
+  - `spanish`: Spanish Latin characters with specific characters (á, é, í, ó, ú, ñ, ü)
+- `categories`: Object with character category counts and percentages:
+  - `digits`: Numeric digits (0-9)
+  - `punctuation`: Punctuation marks
+  - `symbols`: Mathematical and other symbols
+  - `whitespace`: Whitespace characters (spaces, tabs, newlines)
+  - `other`: Unclassified characters
+
+**Language Detection:**
+- Uses Unicode ranges to identify characters from different languages
+- Distinguishes between Russian and Ukrainian by detecting Ukrainian-specific characters (і, ї, є)
+- Detects language-specific characters for Vietnamese, Turkish, and Spanish
+- Percentages are calculated with 2 decimal places precision
+
+**Encoding Detection:**
+- Attempts to detect encoding (UTF-8, UTF-16, UTF-8 BOM, etc.)
+- Uses heuristics based on BOM markers and character patterns
+- Returns encoding information if determinable, otherwise may be undefined
+
+**Error Handling:**
+- Empty text: Returns zero counts and percentages for all languages and categories
+
+#### 8. `encode_base64`
+Encode string to Base64 format.
+
+**Parameters:**
+- `input` (required, string): String to encode
+- `encoding` (optional, string): Input encoding - `utf8`, `hex`, or `binary` (default: `utf8`)
+
+**Example:**
+```json
+{
+  "name": "encode_base64",
+  "arguments": {
+    "input": "Hello World!",
+    "encoding": "utf8"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "encoded": "SGVsbG8gV29ybGQh",
+  "input": "Hello World!",
+  "encoding": "utf8"
+}
+```
+
+#### 9. `decode_base64`
+Decode Base64 string.
+
+**Parameters:**
+- `input` (required, string): Base64 string to decode
+- `encoding` (optional, string): Output encoding - `utf8`, `hex`, or `binary` (default: `utf8`)
+
+**Example:**
+```json
+{
+  "name": "decode_base64",
+  "arguments": {
+    "input": "SGVsbG8gV29ybGQh",
+    "encoding": "utf8"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "decoded": "Hello World!",
+  "input": "SGVsbG8gV29ybGQh",
+  "encoding": "utf8"
+}
+```
+
+#### 10. `encode_url`
+Encode string for URL (URL encoding).
+
+**Parameters:**
+- `input` (required, string): String to encode
+- `component` (optional, string): Component type - `full`, `path`, or `query` (default: `full`)
+
+**Example:**
+```json
+{
+  "name": "encode_url",
+  "arguments": {
+    "input": "Hello World!",
+    "component": "full"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "encoded": "Hello%20World%21",
+  "input": "Hello World!",
+  "component": "full"
+}
+```
+
+#### 11. `decode_url`
+Decode URL-encoded string.
+
+**Parameters:**
+- `input` (required, string): URL-encoded string to decode
+- `component` (optional, string): Component type - `full`, `path`, or `query` (default: `full`)
+
+**Example:**
+```json
+{
+  "name": "decode_url",
+  "arguments": {
+    "input": "Hello%20World%21",
+    "component": "full"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "decoded": "Hello World!",
+  "input": "Hello%20World%21",
+  "component": "full"
+}
+```
+
+#### 12. `format_text_case`
+Convert text to different case formats.
+
+**Parameters:**
+- `input` (required, string): Text to convert
+- `format` (optional, string): Target format - `camelCase`, `PascalCase`, `kebab-case`, `snake_case`, `CONSTANT_CASE`, `Title Case`, `lowercase`, or `UPPERCASE` (if omitted, returns all formats)
+
+**Example:**
+```json
+{
+  "name": "format_text_case",
+  "arguments": {
+    "input": "hello world example"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input": "hello world example",
+  "camelCase": "helloWorldExample",
+  "PascalCase": "HelloWorldExample",
+  "kebab-case": "hello-world-example",
+  "snake_case": "hello_world_example",
+  "CONSTANT_CASE": "HELLO_WORLD_EXAMPLE",
+  "Title Case": "Hello World Example",
+  "lowercase": "hello world example",
+  "UPPERCASE": "HELLO WORLD EXAMPLE"
+}
+```
+
+#### 13. `generate_slug`
+Generate URL-friendly slug from text.
+
+**Parameters:**
+- `input` (required, string): Text to convert to slug
+- `separator` (optional, string): Separator character (default: `-`)
+- `lowercase` (optional, boolean): Convert to lowercase (default: `true`)
+
+**Example:**
+```json
+{
+  "name": "generate_slug",
+  "arguments": {
+    "input": "Hello World Example!",
+    "separator": "-",
+    "lowercase": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input": "Hello World Example!",
+  "slug": "hello-world-example",
+  "separator": "-"
+}
+```
+
+#### 14. `validate_data`
+Validate data against various formats.
+
+**Parameters:**
+- `input` (required, string): Data to validate
+- `type` (required, string): Validation type - `email`, `url`, `ipv4`, `ipv6`, `domain`, `phone`, `credit-card`, `uuid`, `hex`, `base64`, or `json`
+
+**Example:**
+```json
+{
+  "name": "validate_data",
+  "arguments": {
+    "input": "user@example.com",
+    "type": "email"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input": "user@example.com",
+  "type": "email",
+  "valid": true,
+  "normalized": "user@example.com"
+}
+```
+
+**Supported Validation Types:**
+- `email`: Email address validation
+- `url`: URL validation (must start with http:// or https://)
+- `ipv4`: IPv4 address validation
+- `ipv6`: IPv6 address validation
+- `domain`: Domain name validation
+- `phone`: Phone number validation (international format)
+- `credit-card`: Credit card number validation (13-19 digits)
+- `uuid`: UUID v4 validation
+- `hex`: Hexadecimal string validation
+- `base64`: Base64 string validation
+- `json`: JSON string validation (parsing)
+
+#### 15. `format_json`
+Format, validate, minify, or prettify JSON.
+
+**Parameters:**
+- `input` (required, string): JSON string to process
+- `action` (required, string): Action to perform - `format`, `validate`, `minify`, or `prettify`
+- `indent` (optional, number): Number of spaces for indentation (0-10, default: 2)
+
+**Example:**
+```json
+{
+  "name": "format_json",
+  "arguments": {
+    "input": "{\"name\":\"test\",\"value\":123}",
+    "action": "prettify",
+    "indent": 2
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "formatted": "{\n  \"name\": \"test\",\n  \"value\": 123\n}",
+  "minified": "{\"name\":\"test\",\"value\":123}"
+}
+```
+
+**Actions:**
+- `validate`: Validate JSON and return formatted version
+- `format`: Format JSON with specified indentation
+- `prettify`: Same as format (pretty print)
+- `minify`: Remove all whitespace from JSON
+
+#### 16. `generate_password`
+Generate secure passwords with customizable options.
+
+**Parameters:**
+- `length` (optional, number): Password length (8-128, default: 16)
+- `include_uppercase` (optional, boolean): Include uppercase letters (default: `true`)
+- `include_lowercase` (optional, boolean): Include lowercase letters (default: `true`)
+- `include_numbers` (optional, boolean): Include numbers (default: `true`)
+- `include_symbols` (optional, boolean): Include symbols (default: `true`)
+- `exclude_similar` (optional, boolean): Exclude similar characters (il1Lo0O) (default: `false`)
+
+**Example:**
+```json
+{
+  "name": "generate_password",
+  "arguments": {
+    "length": 16,
+    "include_uppercase": true,
+    "include_lowercase": true,
+    "include_numbers": true,
+    "include_symbols": true,
+    "exclude_similar": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "password": "Kx9#mP2$vL8@nQ4!",
+  "length": 16,
+  "strength": "strong",
+  "entropy": 95.24,
+  "character_set_size": 94
+}
+```
+
+**Password Strength Levels:**
+- `weak`: Low entropy (< 50)
+- `medium`: Medium entropy (50-70)
+- `strong`: High entropy (70-90)
+- `very-strong`: Very high entropy (> 90)
+
+#### 17. `format_bytes`
+Format bytes to human-readable format.
+
+**Parameters:**
+- `bytes` (required, number): Number of bytes to format
+- `format` (optional, string): Format type - `binary` (1024-based) or `decimal` (1000-based) (default: `binary`)
+- `precision` (optional, number): Number of decimal places (0-10, default: 2)
+
+**Example:**
+```json
+{
+  "name": "format_bytes",
+  "arguments": {
+    "bytes": 1048576,
+    "format": "binary",
+    "precision": 2
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "bytes": 1048576,
+  "formatted": "1.00 MB",
+  "formatted_decimal": "1.05 MB",
+  "kilobytes": 1024,
+  "megabytes": 1,
+  "gigabytes": 0.0009765625,
+  "terabytes": 9.5367431640625e-7,
+  "petabytes": 9.313225746154785e-10
+}
+```
+
+#### 18. `format_number`
+Format numbers (currency, percentage, thousands separator, decimal).
+
+**Parameters:**
+- `number` (required, number): Number to format
+- `format` (required, string): Format type - `currency`, `percentage`, `thousands`, or `decimal`
+- `locale` (optional, string): Locale (default: `en-US`)
+- `currency` (optional, string): Currency code for currency format (default: `USD`)
+- `minimum_fraction_digits` (optional, number): Minimum fraction digits (0-20)
+- `maximum_fraction_digits` (optional, number): Maximum fraction digits (0-20)
+
+**Example:**
+```json
+{
+  "name": "format_number",
+  "arguments": {
+    "number": 1234.56,
+    "format": "currency",
+    "locale": "en-US",
+    "currency": "USD"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input": 1234.56,
+  "formatted": "$1,234.56",
+  "format": "currency",
+  "locale": "en-US",
+  "currency": "USD"
+}
+```
+
+**Format Types:**
+- `currency`: Format as currency (e.g., $1,234.56)
+- `percentage`: Format as percentage (e.g., 12.34%)
+- `thousands`: Format with thousands separator (e.g., 1,234.56)
+- `decimal`: Format with decimal point (e.g., 1234.56)
+
+#### 19. `convert_color`
+Convert between color formats (hex, RGB, HSL).
+
+**Parameters:**
+- `input` (required, string): Color value to convert
+- `from` (required, string): Source color format - `hex`, `rgb`, or `hsl`
+- `to` (required, string): Target color format - `hex`, `rgb`, or `hsl`
+
+**Example:**
+```json
+{
+  "name": "convert_color",
+  "arguments": {
+    "input": "#FF5733",
+    "from": "hex",
+    "to": "rgb"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input": "#FF5733",
+  "from": "hex",
+  "to": "rgb",
+  "hex": "#FF5733",
+  "rgb": "rgb(255, 87, 51)",
+  "hsl": "hsl(9, 100%, 60%)",
+  "rgb_array": [255, 87, 51],
+  "hsl_array": [9, 100, 60]
+}
+```
+
+**Note:** Returns all formats (hex, RGB, HSL) regardless of requested conversion for convenience.
+
+#### 20. `convert_timezone`
+Convert datetime between timezones.
+
+**Parameters:**
+- `datetime` (required, string): Datetime string to convert
+- `from_timezone` (optional, string): Source timezone (default: `UTC`)
+- `to_timezone` (required, string): Target timezone
+- `format` (optional, string): Output format (optional)
+
+**Example:**
+```json
+{
+  "name": "convert_timezone",
+  "arguments": {
+    "datetime": "2025-12-07T12:00:00Z",
+    "from_timezone": "UTC",
+    "to_timezone": "America/New_York"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "input_datetime": "2025-12-07T12:00:00Z",
+  "from_timezone": "UTC",
+  "to_timezone": "America/New_York",
+  "converted_datetime": "2025-12-07 07:00:00",
+  "iso_string": "2025-12-07T07:00:00-05:00",
+  "unix_timestamp": 1733580000,
+  "formatted": "2025-12-07 07:00:00"
+}
+```
+
+## Installation & Configuration
+
+### Quick Start
+
+Choose your environment below for installation instructions:
+
+- **[Cursor AI](#cursor-ai)** - Recommended for AI-powered code editing
+- **[Claude Desktop](#claude-desktop)** - For Anthropic's Claude Desktop app
+- **[Windsurf](#windsurf)** - For Windsurf IDE
+- **[Standalone/CLI](#standalone-cli)** - Run as standalone server or CLI tool
+
+---
+
+## Cursor AI
 
 ### Global Configuration (All Users and Projects) - Recommended
 
@@ -591,7 +1338,7 @@ Run the automated test suite to verify all functions:
 npm test
 ```
 
-This will test all 18 tools:
+This will test all 20 tools:
 - `get_current_datetime` - all available formats
 - `get_os_version` - OS information and user details
 - `calculate_math_expression` - simple arithmetic, complex expressions, functions, and error cases
@@ -608,6 +1355,9 @@ This will test all 18 tools:
 - `format_number` - number formatting (currency, percentage, thousands, decimal)
 - `convert_color` - color conversion (hex, RGB, HSL)
 - `convert_timezone` - timezone conversion
+- `analyze_logs` - analyze text for errors and warnings in logs
+- `analyze_language` - analyze text for language distribution and character types
+- `analyze_language` - analyze text for language distribution and character types
 
 ### MCP Inspector
 
