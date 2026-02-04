@@ -31,7 +31,7 @@
     "test": "node test-server.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "expr-eval-fork": "^2.0.2"
   },
   "devDependencies": {
