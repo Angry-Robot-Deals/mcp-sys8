@@ -31,12 +31,17 @@
     "test": "node test-server.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "expr-eval-fork": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.16.5",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "qs": "6.14.2",
+    "ajv": "8.18.0",
+    "path-to-regexp": "8.4.0"
   }
 }
